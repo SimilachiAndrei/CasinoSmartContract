@@ -2,6 +2,26 @@ datatype State = IDLE | GAME_AVAILABLE | BET_PLACED
 
 datatype Coin = HEADS | TAILS
 
+class Sender {
+  var name: string
+  var balance: int
+
+  constructor(name: string)
+  {
+    this.name := name;
+    this.balance := 0;
+  }
+
+  method transfer(person: Sender, amount: int)
+  modifies this
+  modifies person
+  requires 0 < amount <= this.balance
+  {
+    this.balance := this.balance - amount;
+    person.balance := person.balance + amount;
+  }
+}
+
 class Contract {
   var name: string
   var operator: string
