@@ -6,22 +6,29 @@ class Sender {
   var name: string
   var balance: int
 
-  constructor() 
-  ensures this.balance >= 0
+  constructor()
+    ensures this.balance >= 0
   {
     this.name := "";
     this.balance := 0;
   }
 
   constructor FromName(name: string)
-  ensures this.balance >= 0 
+    ensures this.balance >= 0
   {
     this.name := name;
     this.balance := 0;
   }
+  constructor FromNameBalance(name: string, balance: int)
+    requires balance > 0
+    ensures this.balance ==balance
+  {
+    this.name := name;
+    this.balance := balance;
+  }
 
   method transfer(person: Sender, amount: int)
-  requires person != this
+    requires person != this
     modifies this, person
     requires this != person
     requires 0 < amount <= this.balance
@@ -59,6 +66,7 @@ class Contract {
 
 
   constructor(sender: Sender, guess: Coin)
+  ensures this.operator != this.player
   {
     this.operator := sender;
     this.guess := guess;
@@ -73,8 +81,11 @@ class Contract {
     modifies this.operator
     // requires this.state != BET_PLACED
     requires this.operator == sender
+    requires this.operator != this.player
+    ensures this.operator != this.player
+    // ensures 0 < this.bet <= this.operator.balance
     // requires 0 < this.bet < this.pot / 2
-  {
+  { 
     this.operator.balance := this.operator.balance + amount;
     this.pot := pot - amount;
   }
@@ -89,7 +100,7 @@ class Contract {
     this.state := GAME_AVAILABLE;
   }
 
-    method addToPot(sender: Sender, amount: int)
+  method addToPot(sender: Sender, amount: int)
     requires 0 < amount <= sender.balance
     modifies this
     modifies this.operator
@@ -110,8 +121,10 @@ class Contract {
     modifies this
     modifies this.operator
     modifies sender
+
+    // ensures 0 < this.bet <= sender.balance
   {
-    
+
     this.state := BET_PLACED;
     this.player := sender;
 
@@ -127,20 +140,25 @@ class Contract {
     requires this.state == BET_PLACED
     requires this.operator == sender
     requires this.cryptohash(secretNumber) == this.hashedNumber
+    requires 0 < this.bet <= sender.balance
+    requires this.player != this.operator
+    requires this.bet <= this.player.balance
     modifies this
     modifies this.operator
+    modifies this.player
   {
     var secret: Coin := getCoinFromGuess((secretNumber % 2) == 0);
     if secret == this.guess {
       // Player wins
-      // this.pot := this.pot - this.bet;
-      // this.player.balance := this.player.balance + 2 * this.bet;
+      this.pot := this.pot - this.bet;
+      this.player.balance := this.player.balance + 2 * this.bet;
       this.removeFromPot(operator, 2* this.bet);
+      // assert 0 < this.bet <= this.operator.balance;
       // this.operator.transfer(this.player, 2 * this.bet);
     } else {
       // Operator wins
-      // this.player.transfer(this.operator, this.bet);
-      // this.addToPot(this.operator, this.bet);
+      this.player.transfer(this.operator, this.bet);
+      this.addToPot(this.operator, this.bet);
     }
     this.bet := 0;
     this.state := IDLE;
