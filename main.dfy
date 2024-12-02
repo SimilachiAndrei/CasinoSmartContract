@@ -79,11 +79,15 @@ class Contract {
   method removeFromPot(sender: Sender, amount: int)
     modifies this
     modifies this.operator
+    requires this.operator.balance >= 0
+    requires this.bet > 0
+    requires 2 * this.bet == amount
     // requires this.state != BET_PLACED
     requires this.operator == sender
     requires this.operator != this.player
     ensures this.operator != this.player
-    // ensures 0 < this.bet <= this.operator.balance
+    ensures 0 < this.bet <= this.operator.balance
+    ensures 0 < 2 * this.bet <= this.operator.balance
     // requires 0 < this.bet < this.pot / 2
   { 
     this.operator.balance := this.operator.balance + amount;
@@ -153,8 +157,8 @@ class Contract {
       this.pot := this.pot - this.bet;
       this.player.balance := this.player.balance + 2 * this.bet;
       this.removeFromPot(operator, 2* this.bet);
-      // assert 0 < this.bet <= this.operator.balance;
-      // this.operator.transfer(this.player, 2 * this.bet);
+      assert 2 * this.bet <= this.operator.balance;
+      this.operator.transfer(this.player, 2 * this.bet);
     } else {
       // Operator wins
       this.player.transfer(this.operator, this.bet);
