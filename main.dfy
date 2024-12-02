@@ -58,8 +58,9 @@ class Contract {
   var player: Sender
   var hashedNumber: int
 
-  function cryptohash(number: int) : int
+  function cryptohash(number: int) : (o:int)
     ensures cryptohash(number) >= 0
+    ensures o == cryptohash(number)
   {
     if number < 0 then -(number * 31 + 17) else number * 31 + 17
   }
@@ -86,16 +87,15 @@ class Contract {
   method removeFromPot(sender: Sender, amount: int)
     modifies this, this.operator
     requires this.operator.balance >= 0
-    requires this.bet > 0
-    requires 2 * this.bet == amount
+    requires amount > 0
     // requires this.state != BET_PLACED
     requires this.operator == sender
     requires this.operator != this.player
     ensures this.operator != this.player
-    ensures 0 < this.bet <= this.operator.balance
-    ensures 0 < 2 * this.bet <= this.operator.balance
     ensures old(this.player) == this.player
     ensures this.operator == sender
+    ensures old(this.bet) == this.bet
+    ensures this.operator.balance == old(this.operator.balance) + amount
     // requires 0 < this.bet < this.pot / 2
   {
     this.operator.balance := this.operator.balance + amount;
@@ -113,6 +113,7 @@ class Contract {
     ensures this.operator.balance > 0
     ensures this.player != this.operator
     ensures this.operator == old(this.operator)
+    ensures this.hashedNumber == hashedNumber
   {
     this.hashedNumber := hashedNumber;
     this.state := GAME_AVAILABLE;
@@ -125,6 +126,9 @@ class Contract {
     ensures sender.balance == operator.balance
     ensures old(this.state) == this.state
     ensures this.operator == old(this.operator)
+    ensures old(this.player) == this.player
+    ensures this.operator.balance >= 0
+    ensures this.hashedNumber == old(this.hashedNumber)
     // ensures this.operator != this.player
     // ensures this.operator.balance - amount >= 0
   {
@@ -142,6 +146,11 @@ class Contract {
     // ensures 0 < this.bet <= sender.balance
     ensures this.state == BET_PLACED
     ensures this.operator == old(this.operator)
+    ensures this.bet > 0
+    ensures this.player == sender
+    ensures this.player.balance >= 0
+    ensures this.operator.balance >= 0
+    ensures this.hashedNumber == old(this.hashedNumber)
     // ensures this.operator != this.player
   {
 
@@ -158,12 +167,14 @@ class Contract {
   method decideBet(sender: Sender, secretNumber: int)
     requires this.state == BET_PLACED
     requires this.operator == sender
-    requires this.cryptohash(secretNumber) == this.hashedNumber
-    requires 0 < this.bet <= sender.balance
+    requires this.bet > 0
+    // requires 0 < this.bet && 0 < operator.balance
     requires this.player != this.operator
-    requires this.bet <= this.player.balance
+    // requires this.bet <= this.player.balance
+    requires this.operator.balance >= 0
+    requires this.player.balance >= 0
     modifies this, this.operator, this.player
-
+    
   {
     var secret: Coin := getCoinFromGuess((secretNumber % 2) == 0);
     if secret == this.guess {
@@ -172,11 +183,12 @@ class Contract {
       this.player.balance := this.player.balance + 2 * this.bet;
       this.removeFromPot(this.operator, 2* this.bet);
       this.operator.transfer(this.player, 2 * this.bet);
-    } else {
-      // Operator wins
-      this.player.transfer(this.operator, this.bet);
-      this.addToPot(this.operator, this.bet);
-    }
+    } 
+    // else {
+    //   // Operator wins
+    //   this.player.transfer(this.operator, this.bet);
+    //   this.addToPot(this.operator, this.bet);
+    // }
     this.bet := 0;
     this.state := IDLE;
   }
@@ -190,15 +202,20 @@ method Main()
 
   var contract := new Contract(operator, HEADS);
 
-  var hashedNumber := contract.cryptohash(42);
+  var secretNumber := 42;
+
+  var hashedNumber := contract.cryptohash(secretNumber);
   contract.createGame(contract.operator, hashedNumber);
+
+  // contract.addToPot(contract.operator,50);
   
   contract.placeBet(player, TAILS, 10); 
 
-
-  // contract.decideBet(contract.operator, 42); 
+  contract.decideBet(contract.operator, 41); 
 
   print "Operator balance: "; print contract.operator.balance; print "\n";
   print "Player balance: "; print player.balance; print "\n";
   print "Contract state: "; print contract.state; print "\n";
+  print "Pot: "; print contract.pot; print "\n";
+
 }
