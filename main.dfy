@@ -77,8 +77,7 @@ class Contract {
   }
 
   method removeFromPot(sender: Sender, amount: int)
-    modifies this
-    modifies this.operator
+    modifies this, this.operator
     requires this.operator.balance >= 0
     requires this.bet > 0
     requires 2 * this.bet == amount
@@ -88,6 +87,8 @@ class Contract {
     ensures this.operator != this.player
     ensures 0 < this.bet <= this.operator.balance
     ensures 0 < 2 * this.bet <= this.operator.balance
+    ensures old(this.player) == this.player
+    ensures this.operator == sender
     // requires 0 < this.bet < this.pot / 2
   { 
     this.operator.balance := this.operator.balance + amount;
@@ -106,8 +107,7 @@ class Contract {
 
   method addToPot(sender: Sender, amount: int)
     requires 0 < amount <= sender.balance
-    modifies this
-    modifies this.operator
+    modifies this, this.operator
     requires sender == this.operator
     ensures sender.balance == operator.balance
     // ensures this.operator.balance - amount >= 0
@@ -122,10 +122,7 @@ class Contract {
     requires 0 < amount <= sender.balance
     requires this.operator.balance > 0
 
-    modifies this
-    modifies this.operator
-    modifies sender
-
+    modifies this, sender, this.operator
     // ensures 0 < this.bet <= sender.balance
   {
 
@@ -147,17 +144,15 @@ class Contract {
     requires 0 < this.bet <= sender.balance
     requires this.player != this.operator
     requires this.bet <= this.player.balance
-    modifies this
-    modifies this.operator
-    modifies this.player
+    modifies this, this.operator, this.player
+
   {
     var secret: Coin := getCoinFromGuess((secretNumber % 2) == 0);
     if secret == this.guess {
       // Player wins
       this.pot := this.pot - this.bet;
       this.player.balance := this.player.balance + 2 * this.bet;
-      this.removeFromPot(operator, 2* this.bet);
-      assert 2 * this.bet <= this.operator.balance;
+      this.removeFromPot(this.operator, 2* this.bet);
       this.operator.transfer(this.player, 2 * this.bet);
     } else {
       // Operator wins
