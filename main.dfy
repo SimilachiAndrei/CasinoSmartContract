@@ -21,7 +21,8 @@ class Sender {
   }
   constructor FromNameBalance(name: string, balance: int)
     requires balance > 0
-    ensures this.balance ==balance
+    ensures this.balance == balance
+    ensures this.balance > 0
   {
     this.name := name;
     this.balance := balance;
@@ -57,7 +58,11 @@ class Contract {
   var player: Sender
   var hashedNumber: int
 
-  ghost function cryptohash(number: int) : int
+  function cryptohash(number: int) : int
+    ensures cryptohash(number) >= 0
+  {
+    if number < 0 then -(number * 31 + 17) else number * 31 + 17
+  }
 
   function getCoinFromGuess(guess: bool) : Coin{
     if guess == true then TAILS
@@ -66,7 +71,9 @@ class Contract {
 
 
   constructor(sender: Sender, guess: Coin)
-  ensures this.operator != this.player
+    ensures this.operator != this.player
+    ensures this.state == IDLE
+    ensures this.operator == sender
   {
     this.operator := sender;
     this.guess := guess;
@@ -90,7 +97,7 @@ class Contract {
     ensures old(this.player) == this.player
     ensures this.operator == sender
     // requires 0 < this.bet < this.pot / 2
-  { 
+  {
     this.operator.balance := this.operator.balance + amount;
     this.pot := pot - amount;
   }
@@ -99,7 +106,13 @@ class Contract {
   method createGame(sender: Sender, hashedNumber: int)
     requires this.state == IDLE
     requires this.operator == sender
+    requires this.player != this.operator
+    requires operator.balance > 0
     modifies this
+    ensures this.state == GAME_AVAILABLE
+    ensures this.operator.balance > 0
+    ensures this.player != this.operator
+    ensures this.operator == old(this.operator)
   {
     this.hashedNumber := hashedNumber;
     this.state := GAME_AVAILABLE;
@@ -110,6 +123,9 @@ class Contract {
     modifies this, this.operator
     requires sender == this.operator
     ensures sender.balance == operator.balance
+    ensures old(this.state) == this.state
+    ensures this.operator == old(this.operator)
+    // ensures this.operator != this.player
     // ensures this.operator.balance - amount >= 0
   {
     this.operator.balance := this.operator.balance - amount;
@@ -124,11 +140,13 @@ class Contract {
 
     modifies this, sender, this.operator
     // ensures 0 < this.bet <= sender.balance
+    ensures this.state == BET_PLACED
+    ensures this.operator == old(this.operator)
+    // ensures this.operator != this.player
   {
 
     this.state := BET_PLACED;
     this.player := sender;
-
     sender.transfer(this.operator, amount);
 
     this.addToPot(this.operator, amount);
@@ -165,3 +183,22 @@ class Contract {
 
 }
 
+method Main()
+{
+  var operator := new Sender.FromNameBalance("Operator", 100);
+  var player := new Sender.FromNameBalance("Player", 50);
+
+  var contract := new Contract(operator, HEADS);
+
+  var hashedNumber := contract.cryptohash(42);
+  contract.createGame(contract.operator, hashedNumber);
+  
+  contract.placeBet(player, TAILS, 10); 
+
+
+  // contract.decideBet(contract.operator, 42); 
+
+  print "Operator balance: "; print contract.operator.balance; print "\n";
+  print "Player balance: "; print player.balance; print "\n";
+  print "Contract state: "; print contract.state; print "\n";
+}
