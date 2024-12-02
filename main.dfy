@@ -75,6 +75,8 @@ class Contract {
     ensures this.operator != this.player
     ensures this.state == IDLE
     ensures this.operator == sender
+    ensures this.bet == 0
+    ensures this.pot == 0
   {
     this.operator := sender;
     this.guess := guess;
@@ -87,7 +89,7 @@ class Contract {
   method removeFromPot(sender: Sender, amount: int)
     modifies this, this.operator
     requires this.operator.balance >= 0
-    requires amount > 0
+    requires 0 < amount <= this.pot
     // requires this.state != BET_PLACED
     requires this.operator == sender
     requires this.operator != this.player
@@ -108,12 +110,16 @@ class Contract {
     requires this.operator == sender
     requires this.player != this.operator
     requires operator.balance > 0
+    requires this.bet == 0
+    requires this.pot == 0
     modifies this
     ensures this.state == GAME_AVAILABLE
     ensures this.operator.balance > 0
     ensures this.player != this.operator
     ensures this.operator == old(this.operator)
     ensures this.hashedNumber == hashedNumber
+    ensures this.bet == 0
+    ensures this.pot == 0
   {
     this.hashedNumber := hashedNumber;
     this.state := GAME_AVAILABLE;
@@ -121,14 +127,16 @@ class Contract {
 
   method addToPot(sender: Sender, amount: int)
     requires 0 < amount <= sender.balance
-    modifies this, this.operator
     requires sender == this.operator
+    modifies this, this.operator
     ensures sender.balance == operator.balance
     ensures old(this.state) == this.state
     ensures this.operator == old(this.operator)
     ensures old(this.player) == this.player
     ensures this.operator.balance >= 0
     ensures this.hashedNumber == old(this.hashedNumber)
+    ensures this.pot == old(this.pot) + amount
+    ensures this.bet == old(this.bet)
     // ensures this.operator != this.player
     // ensures this.operator.balance - amount >= 0
   {
@@ -140,7 +148,9 @@ class Contract {
     requires state == GAME_AVAILABLE
     requires sender != this.operator
     requires 0 < amount <= sender.balance
-    requires this.operator.balance > 0
+    requires this.operator.balance >= 0
+    requires this.pot >= 2 * amount
+
 
     modifies this, sender, this.operator
     // ensures 0 < this.bet <= sender.balance
@@ -151,6 +161,7 @@ class Contract {
     ensures this.player.balance >= 0
     ensures this.operator.balance >= 0
     ensures this.hashedNumber == old(this.hashedNumber)
+    ensures this.pot >= 2 * this.bet
     // ensures this.operator != this.player
   {
 
@@ -173,14 +184,13 @@ class Contract {
     // requires this.bet <= this.player.balance
     requires this.operator.balance >= 0
     requires this.player.balance >= 0
+    requires this.pot >= 2 * this.bet
     modifies this, this.operator, this.player
     
   {
     var secret: Coin := getCoinFromGuess((secretNumber % 2) == 0);
     if secret == this.guess {
       // Player wins
-      this.pot := this.pot - this.bet;
-      this.player.balance := this.player.balance + 2 * this.bet;
       this.removeFromPot(this.operator, 2* this.bet);
       this.operator.transfer(this.player, 2 * this.bet);
     } 
@@ -207,7 +217,7 @@ method Main()
   var hashedNumber := contract.cryptohash(secretNumber);
   contract.createGame(contract.operator, hashedNumber);
 
-  // contract.addToPot(contract.operator,50);
+  contract.addToPot(contract.operator,50);
   
   contract.placeBet(player, TAILS, 10); 
 
