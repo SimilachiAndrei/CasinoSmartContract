@@ -1,9 +1,10 @@
-datatype State = IDLE | GAME_AVAILABLE | BET_PLACED
+datatype State = IDLE | GAME_AVAILABLE | BET_PLACED | TRANSFERING
 
 datatype Coin = HEADS | TAILS
 
 trait Account{
   var balance: int
+  const isContract: bool
 }
 
 class Sender extends Account{
@@ -14,6 +15,7 @@ class Sender extends Account{
   {
     this.name := "";
     this.balance := 0;
+    this.isContract := false;
   }
 
   constructor FromName(name: string)
@@ -21,6 +23,8 @@ class Sender extends Account{
   {
     this.name := name;
     this.balance := 0;
+    this.isContract := false;
+
   }
   constructor FromNameBalance(name: string, balance: int)
     requires balance > 0
@@ -29,6 +33,8 @@ class Sender extends Account{
   {
     this.name := name;
     this.balance := balance;
+    this.isContract := false;
+
   }
 
   method transfer(person: Sender, amount: int)
@@ -86,13 +92,15 @@ class Contract extends Account{
     this.balance := 0;
     this.bet := 0;
     this.player := new Sender();
+    this.isContract := true;
+
   }
 
   method removeFrombalance(sender: Sender, amount: int)
     modifies this, this.operator
     requires this.operator.balance >= 0
     requires 0 < amount <= this.balance
-    // requires this.state != BET_PLACED
+    requires this.state != BET_PLACED
     requires this.operator == sender
     requires this.operator != this.player
     ensures this.operator != this.player
@@ -188,14 +196,15 @@ class Contract extends Account{
     requires this.player.balance >= 0
     requires this.balance >= 2 * this.bet
     modifies this, this.operator, this.player
-    
+
   {
     var secret: Coin := getCoinFromGuess((secretNumber % 2) == 0);
     if secret == this.guess {
       // Player wins
+      this.state := TRANSFERING;
       this.removeFrombalance(this.operator, 2* this.bet);
       this.operator.transfer(this.player, 2 * this.bet);
-    } 
+    }
     this.bet := 0;
     this.state := IDLE;
   }
@@ -215,10 +224,10 @@ method Main()
   contract.createGame(contract.operator, hashedNumber);
 
   contract.addTobalance(contract.operator,50);
-  
-  contract.placeBet(player, TAILS, 10); 
 
-  contract.decideBet(contract.operator, 41); 
+  contract.placeBet(player, TAILS, 10);
+
+  contract.decideBet(contract.operator, 41);
 
   print "Operator balance: "; print contract.operator.balance; print "\n";
   print "Player balance: "; print player.balance; print "\n";
