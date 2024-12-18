@@ -6,23 +6,8 @@ datatype Msg = Msg(sender: Account, value: int)
 
 datatype Try<T> = Success(v: T) | Revert()
 
-
-
 trait Account {
   var balance: int
-  var address: string
-
-  method transfer(to: Account, amount: int)
-    requires to != this
-    requires 0 < amount <= this.balance
-    requires to.balance >= 0
-    modifies this, to
-    ensures this.balance == old(this.balance) - amount
-    ensures to.balance == old(to.balance) + amount
-  {
-    this.balance := this.balance - amount;
-    to.balance := to.balance + amount;
-  }
 }
 
 class UserAccount extends Account {
@@ -43,11 +28,11 @@ class Casino extends Account{
   var bet: int
   var state: State
 
-  function cryptohash(number: int): int
+  function {:axiom} cryptohash(number: int): int
     ensures cryptohash(number) >= 0
-  {
-    if number < 0 then -(number * 31 + 17) else number * 31 + 17
-  }
+  // {
+  //   if number < 0 then -(number * 31 + 17) else number * 31 + 17
+  // }
 
   function getCoinFromNumber(number: int): Coin {
     if number % 2 == 0 then HEADS else TAILS
@@ -70,6 +55,7 @@ class Casino extends Account{
     ensures this != this.operator
     ensures this != player
     ensures this.balance >= 0
+    ensures GInv()
   {
     this.balance := 0;
     this.operator := msg.sender;
@@ -79,43 +65,62 @@ class Casino extends Account{
     this.player := new UserAccount(0);
   }
 
+    method transfer(from: Account, to: Account, amount: int)
+    requires GInv()
+    requires to != from
+    requires 0 < amount <= from.balance
+    requires to.balance >= 0
+    modifies from, to
+    ensures from.balance == old(from.balance) - amount
+    ensures to.balance == old(to.balance) + amount
+    ensures old(this.pot) == this.pot
+    ensures GInv()
+  {
+    from.balance := from.balance - amount;
+    to.balance := to.balance + amount;
+  }
+
   method addToPot(msg: Msg)
+    requires GInv()
     requires msg.sender == this.operator
     requires 0 < msg.value <= this.operator.balance
     requires msg.sender != this
     requires this.balance >= 0
     modifies this, this.operator
+    ensures GInv()
     // ensures this.pot == old(this.pot) + msg.value
     // ensures this.operator.balance == old(this.operator.balance) - msg.value
   {
-    this.operator.transfer(this, msg.value);
-    // assert this.operator.balance == old(this.operator.balance) - msg.value;
-    // this.operator.balance := this.operator.balance - msg.value;
+    transfer(this.operator, this, msg.value);
     this.pot := this.pot + msg.value;
   }
 
   method removeFromPot(msg: Msg, amount: int)
+    requires GInv()
     requires this.state != BET_PLACED
     requires msg.sender == this.operator
     requires 0 < amount <= this.balance
+    requires 0 < amount <= this.pot
     requires msg.sender != this
     requires this.operator.balance >= 0
     modifies this, this.operator
+    ensures GInv()
     // ensures this.pot == old(this.pot) - amount
     // ensures this.operator.balance == old(this.operator.balance) + amount
   {
-    // assert this.operator.balance >= 0;
-    this.transfer(this.operator,amount);
+    transfer(this, this.operator,amount);
     this.pot := this.pot - amount;
   }
 
   method createGame(msg: Msg, hashedNumber: int)
+    requires GInv()
     requires this.state == IDLE
     requires msg.sender == this.operator
     requires msg.sender != this
     modifies this
     ensures this.state == GAME_AVAILABLE
     ensures this.hashedNumber == hashedNumber
+    ensures GInv()
   {
     this.hashedNumber := hashedNumber;
     this.state := GAME_AVAILABLE;
@@ -127,16 +132,15 @@ class Casino extends Account{
     requires msg.sender != this
     requires 0 < msg.value <= msg.sender.balance
     requires this.balance >= 0
+    requires GInv()
     modifies this, msg.sender
     ensures this.state == BET_PLACED
     ensures this.bet == msg.value
     ensures this.player == msg.sender
     ensures this.guess == guess
+    ensures GInv()
   {
-    //payable ??? inainte sau dupa
-    // this.player.balance := this.player.balance - msg.value;
-    // this.pot := this.pot + msg.value;
-    msg.sender.transfer(this, msg.value);
+    transfer(msg.sender, this, msg.value);
     this.state := BET_PLACED;
     this.player := msg.sender;
     this.bet := msg.value;
@@ -144,22 +148,25 @@ class Casino extends Account{
   }
 
   method decideBet(msg: Msg, secretNumber: int)
+    requires GInv()
     requires this.state == BET_PLACED
     requires msg.sender == this.operator
     requires cryptohash(secretNumber) == this.hashedNumber
     requires msg.sender != this && player != this
     requires this.player.balance >= 0
     requires 0 < 2 * this.bet <= this.balance
+    requires 0 < 2 * this.bet <= this.pot
     modifies this, this.operator, this.player
     ensures this.state == IDLE
     ensures this.bet == 0
+    ensures GInv()
   {
     var secret: Coin := getCoinFromNumber(secretNumber);
 
     if secret == this.guess {
       // Player wins
       this.pot := this.pot - this.bet;
-      this.transfer(this.player, 2 * this.bet);
+      transfer(this, this.player, 2 * this.bet);
     } else {
       // Operator wins
       this.pot := this.pot + this.bet;
@@ -178,14 +185,16 @@ class Casino extends Account{
   //     // Simulate re-entrant `placeBet`
   //     var msg: Msg := havoc();
   //     var newGuess: Coin := havoc();
-  //     // placeBet(msg, newGuess);
+  //     placeBet(msg, newGuess);
   //   } else if k % 2 == 1  {
   //     // Simulate re-entrant `decideBet`
   //     var msg: Msg := havoc();
   //     var secretNumber: int := havoc();
-  //     // decideBet(msg, secretNumber);
+  //     decideBet(msg, secretNumber);
   //   }
   // }
 method {:extern} havoc<T>() returns (a: T)
 }
 
+//in loc de requires trebuie verificat cu if si sa poata fi dat revert . trebuie adaugat gas, modificat invariantul global
+//sa fie mai bun
