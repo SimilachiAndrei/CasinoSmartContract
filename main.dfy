@@ -2,7 +2,10 @@ datatype Coin = HEADS | TAILS
 
 datatype State = IDLE | GAME_AVAILABLE | BET_PLACED
 
-datatype Msg = Msg(sender: Account, value: int) 
+datatype Msg = Msg(sender: Account, value: int)
+
+datatype Try<T> = Success(v: T) | Revert()
+
 
 
 trait Account {
@@ -14,8 +17,8 @@ trait Account {
     requires 0 < amount <= this.balance
     requires to.balance >= 0
     modifies this, to
-    // ensures this.balance == old(this.balance) - amount
-    // ensures to.balance == old(to.balance) + amount
+    ensures this.balance == old(this.balance) - amount
+    ensures to.balance == old(to.balance) + amount
   {
     this.balance := this.balance - amount;
     to.balance := to.balance + amount;
@@ -24,11 +27,11 @@ trait Account {
 
 class UserAccount extends Account {
 
-    constructor(initialBal: int) 
-        ensures balance == initialBal
-    {
-        balance := initialBal;
-    }
+  constructor(initialBal: int)
+    ensures balance == initialBal
+  {
+    balance := initialBal;
+  }
 }
 
 class Casino extends Account{
@@ -49,6 +52,15 @@ class Casino extends Account{
   function getCoinFromNumber(number: int): Coin {
     if number % 2 == 0 then HEADS else TAILS
   }
+
+  ghost predicate GInv() 
+  reads this
+  {
+    this.pot >= 0 &&
+    this.balance >= 0 &&
+    (this.state != BET_PLACED || this.bet > 0)
+  }
+
 
   constructor(msg: Msg)
     ensures this.operator == msg.sender
@@ -77,6 +89,7 @@ class Casino extends Account{
     // ensures this.operator.balance == old(this.operator.balance) - msg.value
   {
     this.operator.transfer(this, msg.value);
+    // assert this.operator.balance == old(this.operator.balance) - msg.value;
     // this.operator.balance := this.operator.balance - msg.value;
     this.pot := this.pot + msg.value;
   }
@@ -154,5 +167,25 @@ class Casino extends Account{
     this.bet := 0;
     this.state := IDLE;
   }
+
+  // method externalCall() returns (r: Try<()>)
+  //   requires GInv()
+  //   ensures GInv()
+  //   modifies this
+  // {
+  //   var k: nat := havoc();
+  //   if k % 2 == 0 {
+  //     // Simulate re-entrant `placeBet`
+  //     var msg: Msg := havoc();
+  //     var newGuess: Coin := havoc();
+  //     // placeBet(msg, newGuess);
+  //   } else if k % 2 == 1  {
+  //     // Simulate re-entrant `decideBet`
+  //     var msg: Msg := havoc();
+  //     var secretNumber: int := havoc();
+  //     // decideBet(msg, secretNumber);
+  //   }
+  // }
+method {:extern} havoc<T>() returns (a: T)
 }
 
