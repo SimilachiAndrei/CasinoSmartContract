@@ -11,8 +11,8 @@ trait Account {
 
   method transfer(to: Account, amount: int)
     requires to != this
-    // requires 0 < amount <= this.balance
-    // requires to.balance >= 0
+    requires 0 < amount <= this.balance
+    requires to.balance >= 0
     modifies this, to
     // ensures this.balance == old(this.balance) - amount
     // ensures to.balance == old(to.balance) + amount
@@ -69,13 +69,14 @@ class Casino extends Account{
 
   method addToPot(msg: Msg)
     requires msg.sender == this.operator
-    requires 0 < msg.value <= msg.sender.balance
+    requires 0 < msg.value <= this.operator.balance
     requires msg.sender != this
+    requires this.balance >= 0
     modifies this, this.operator
     // ensures this.pot == old(this.pot) + msg.value
     // ensures this.operator.balance == old(this.operator.balance) - msg.value
   {
-    this.transfer(operator, msg.value);
+    this.operator.transfer(this, msg.value);
     // this.operator.balance := this.operator.balance - msg.value;
     this.pot := this.pot + msg.value;
   }
@@ -83,8 +84,9 @@ class Casino extends Account{
   method removeFromPot(msg: Msg, amount: int)
     requires this.state != BET_PLACED
     requires msg.sender == this.operator
-    requires 0 < amount <= this.pot
+    requires 0 < amount <= this.balance
     requires msg.sender != this
+    requires this.operator.balance >= 0
     modifies this, this.operator
     // ensures this.pot == old(this.pot) - amount
     // ensures this.operator.balance == old(this.operator.balance) + amount
@@ -109,9 +111,9 @@ class Casino extends Account{
   method placeBet(msg: Msg, guess: Coin)
     requires this.state == GAME_AVAILABLE
     requires msg.sender != this.operator
-    requires 0 < msg.value <= this.pot
     requires msg.sender != this
-    // requires 0 < msg.value <= msg.sender.balance
+    requires 0 < msg.value <= msg.sender.balance
+    requires this.balance >= 0
     modifies this, msg.sender
     ensures this.state == BET_PLACED
     ensures this.bet == msg.value
@@ -133,6 +135,8 @@ class Casino extends Account{
     requires msg.sender == this.operator
     requires cryptohash(secretNumber) == this.hashedNumber
     requires msg.sender != this && player != this
+    requires this.player.balance >= 0
+    requires 0 < 2 * this.bet <= this.balance
     modifies this, this.operator, this.player
     ensures this.state == IDLE
     ensures this.bet == 0
@@ -151,3 +155,4 @@ class Casino extends Account{
     this.state := IDLE;
   }
 }
+
