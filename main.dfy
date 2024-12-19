@@ -86,8 +86,8 @@ class Casino extends Account{
               (from.balance == old(from.balance) && to.balance == old(to.balance))
     ensures g == 0 || g <= gas - 1
     ensures GInv()
-    ensures old(this.state) == this.state && old(this.player) == this.player && old(this.guess) == this.guess && old(this.bet)
-    == this.bet
+    ensures old(this.state) == this.state && old(this.player) == this.player && old(this.guess) == this.guess
+            && old(this.bet)== this.bet && old(this.pot) ==this.pot
     decreases gas
   {
     if !(from != to && 0 < amount <= from.balance && to.balance >= 0) {
@@ -184,11 +184,11 @@ class Casino extends Account{
     requires gas >= 1
     requires GInv()
     modifies this, msg.sender
-    ensures r.Success? ==> (this.state == BET_PLACED && this.bet == msg.value && this.player == msg.sender 
-    && this.guess == guess)
+    ensures r.Success? ==> (this.state == BET_PLACED && this.bet == msg.value && this.player == msg.sender
+                            && this.guess == guess)
     ensures r.Revert? ==>
               (old(this.state) == this.state && old(this.guess) == this.guess && old(this.player) == this.player && old(this.bet)
-              == this.bet)
+                                                                                                                    == this.bet)
     ensures g == 0 || g <= gas - 1
     ensures GInv()
     decreases gas
@@ -213,32 +213,49 @@ class Casino extends Account{
     }
   }
 
-  method decideBet(msg: Msg, secretNumber: int, gas: nat)
+  method decideBet(msg: Msg, secretNumber: int, gas: nat) returns (g: nat, r : Try<()>)
+    requires gas >= 1
     requires GInv()
-    requires this.state == BET_PLACED
-    requires msg.sender == this.operator
-    requires cryptohash(secretNumber) == this.hashedNumber
-    requires msg.sender != this && player != this
-    requires this.player.balance >= 0
-    requires 0 < 2 * this.bet <= this.balance
-    requires 0 < 2 * this.bet <= this.pot
     modifies this, this.operator, this.player
-    ensures this.state == IDLE
-    ensures this.bet == 0
+    // ensures this.state == IDLE
+    // ensures this.bet == 0
+    ensures r.Success? ==> (this.state == IDLE && this.bet == 0 
+    &&( this.pot == this.pot + this.bet || this.pot == this.pot - this.bet))
+    ensures r.Revert? ==> (this.state == old(this.state) && this.bet == old(this.bet) && this.pot == old(this.pot) 
+    && this.player == old(this.player))
+    ensures g == 0 || g <= gas - 1
     ensures GInv()
+    decreases gas
   {
-    var secret: Coin := getCoinFromNumber(secretNumber);
+    if !(this.state == BET_PLACED && msg.sender == this.operator && cryptohash(secretNumber) == this.hashedNumber &&
+         msg.sender != this && player != this && this.player.balance >= 0 && 0 < 2 * this.bet <= this.balance &&
+         0 < 2 * this.bet <= this.pot)
+    {
+      return (if gas >= 1 then gas - 1 else 0), Revert();
+    }
 
+    var secret: Coin := getCoinFromNumber(secretNumber);
+    var tg: nat, tr: Try<()>;
+    tg := gas;
     if secret == this.guess {
       // Player wins
-      this.pot := this.pot - this.bet;
-      // transfer(this, this.player, 2 * this.bet, gas);
+      tg, tr := transfer(this, this.player, 2 * this.bet, gas);
+      if tr.Revert? {
+        return (if tg >= 1 then tg - 1 else 0), Revert();
+      }
+      if tg >= 1 {
+        this.pot := this.pot - this.bet;
+        g, r := tg - 1, Success(());
+      } else {
+        return tg, Revert();
+      }
     } else {
       // Operator wins
       this.pot := this.pot + this.bet;
     }
     this.bet := 0;
     this.state := IDLE;
+    g, r := (tg - 1), Success(());
   }
 
   // method externalCall(gas: nat) returns (g: nat, r: Try<()>)
