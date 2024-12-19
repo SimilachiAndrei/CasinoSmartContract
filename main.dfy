@@ -249,27 +249,35 @@ class Casino extends Account{
   }
 
 method externalCall(gas: nat) returns (g: nat, r: Try<()>)
-    requires GInv()
-    ensures GInv()
-    ensures g == 0 || g <= gas - 1
+    requires GInv()  
+    ensures GInv() 
+    ensures g == 0 || g <= gas - 1 
     modifies this, this.operator, this.player
     decreases gas
 {
     var k: nat := havoc();
-    if k % 2 == 0 {
-        // Simulate re-entrant `placeBet`
+
+    if k % 5 == 0 {
         var msg: Msg := havoc();
+        var hashedNumber: int := havoc();
+        g, r := createGame(msg, hashedNumber, gas);
+    } else if k % 5 == 1 {
+        var msg: Msg := havoc(); 
         var newGuess: Coin := havoc();
         g, r := placeBet(msg, newGuess, gas);
-        g :=0;
-    } else if k % 2 == 1  {
-        // Simulate re-entrant `decideBet`
-        var msg: Msg := havoc();
-        var secretNumber: int := havoc();
+    } else if k % 5 == 2 {
+        var msg: Msg := havoc(); 
+        var secretNumber: int := havoc(); 
         g, r := decideBet(msg, secretNumber, gas);
+    } else if k % 5 == 3 {
+        var msg: Msg := havoc();
+        g, r := addToPot(msg, gas);
+    } else if k % 5 == 4 {
+        var msg: Msg := havoc(); 
+        var amount: int := havoc();
+        g, r := removeFromPot(msg, amount, gas);
     }
 }
-
 
   method {:extern} havoc<T>() returns (a: T)
 }
