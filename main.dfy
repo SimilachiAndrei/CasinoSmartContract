@@ -86,6 +86,8 @@ class Casino extends Account{
               (from.balance == old(from.balance) && to.balance == old(to.balance))
     ensures g == 0 || g <= gas - 1
     ensures GInv()
+    ensures old(this.state) == this.state && old(this.player) == this.player && old(this.guess) == this.guess && old(this.bet)
+    == this.bet
     decreases gas
   {
     if !(from != to && 0 < amount <= from.balance && to.balance >= 0) {
@@ -178,25 +180,37 @@ class Casino extends Account{
     g, r := (gas - 1), Success(());
   }
 
-  method placeBet(msg: Msg, guess: Coin, gas: nat)
-    requires this.state == GAME_AVAILABLE
-    requires msg.sender != this.operator
-    requires msg.sender != this
-    requires 0 < msg.value <= msg.sender.balance
-    requires this.balance >= 0
+  method placeBet(msg: Msg, guess: Coin, gas: nat) returns (g : nat , r : Try<()>)
+    requires gas >= 1
     requires GInv()
     modifies this, msg.sender
-    ensures this.state == BET_PLACED
-    ensures this.bet == msg.value
-    ensures this.player == msg.sender
-    ensures this.guess == guess
+    ensures r.Success? ==> (this.state == BET_PLACED && this.bet == msg.value && this.player == msg.sender 
+    && this.guess == guess)
+    ensures r.Revert? ==>
+              (old(this.state) == this.state && old(this.guess) == this.guess && old(this.player) == this.player && old(this.bet)
+              == this.bet)
+    ensures g == 0 || g <= gas - 1
     ensures GInv()
+    decreases gas
   {
-    // transfer(msg.sender, this, msg.value, gas);
-    this.state := BET_PLACED;
-    this.player := msg.sender;
-    this.bet := msg.value;
-    this.guess := guess;
+    if !(this.state == GAME_AVAILABLE && msg.sender != this.operator && msg.sender != this && 0 < msg.value <= msg.sender.balance
+         && this.balance >= 0)
+    {
+      return (if gas >= 1 then gas - 1 else 0), Revert();
+    }
+    var tg, tr := transfer(msg.sender, this, msg.value, gas);
+    if tr.Revert? {
+      return (if tg >= 1 then tg - 1 else 0), Revert();
+    }
+    if tg >= 1 {
+      this.state := BET_PLACED;
+      this.player := msg.sender;
+      this.bet := msg.value;
+      this.guess := guess;
+      g, r := tg - 1, Success(());
+    } else {
+      return tg, Revert();
+    }
   }
 
   method decideBet(msg: Msg, secretNumber: int, gas: nat)
