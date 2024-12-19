@@ -1,4 +1,6 @@
-//TO DO : totalAmount , in loc de requires trebuie verificat cu if si sa poata fi dat revert . trebuie adaugat gas
+//TO DO : totalAmount
+//TO DO : maybe use <==> and find some conditions for Success and Revert in some functions
+//TO DO : verificare havoc
 
 datatype Coin = HEADS | TAILS
 
@@ -30,7 +32,7 @@ class Casino extends Account{
   var bet: int
   var state: State
 
-  ghost var totalAmount: nat 
+  ghost var totalAmount: nat
 
   function {:axiom} cryptohash(number: int): int
     ensures cryptohash(number) >= 0
@@ -42,14 +44,13 @@ class Casino extends Account{
     if number % 2 == 0 then HEADS else TAILS
   }
 
-  ghost predicate GInv() 
-  reads this, this`totalAmount, this.operator, this.player
+  ghost predicate GInv()
+    reads this, this`totalAmount, this.operator, this.player
   {
     this.pot >= 0 &&
     this.balance >= 0 &&
     (this.state != BET_PLACED || this.bet > 0) // &&
-    // totalAmount == this.operator.balance + this.balance 
-    //TO DO : totalAmount invariant
+    // totalAmount == this.operator.balance + this.balance
   }
 
 
@@ -71,78 +72,110 @@ class Casino extends Account{
     this.player := new UserAccount(0);
   }
 
-method transfer(from: Account, to: Account, amount: int, gas: nat) returns (g: nat, r: Try<()>)
+  method transfer(from: Account, to: Account, amount: int, gas: nat) returns (g: nat, r: Try<()>)
     requires GInv()
     requires gas >= 1
     modifies from, to
-    ensures 
-        r.Success? <==> 
-            (from != to && 0 < amount <= old(from.balance) && to.balance >= 0 && gas >= 1 &&
-             from.balance == old(from.balance) - amount &&
-             to.balance == old(to.balance) + amount &&
-             old(this.pot) == this.pot)
-    ensures r.Revert? ==> 
-            (from.balance == old(from.balance) && to.balance == old(to.balance))
+    ensures
+      r.Success? <==>
+      (from != to && 0 < amount <= old(from.balance) && to.balance >= 0 && gas >= 1 &&
+       from.balance == old(from.balance) - amount &&
+       to.balance == old(to.balance) + amount &&
+       old(this.pot) == this.pot)
+    ensures r.Revert? ==>
+              (from.balance == old(from.balance) && to.balance == old(to.balance))
     ensures g == 0 || g <= gas - 1
     ensures GInv()
     decreases gas
-{
+  {
     if !(from != to && 0 < amount <= from.balance && to.balance >= 0) {
-        return (if gas >= 1 then gas - 1 else 0), Revert();
+      return (if gas >= 1 then gas - 1 else 0), Revert();
     }
 
     from.balance := from.balance - amount;
     to.balance := to.balance + amount;
 
     g, r := (gas - 1), Success(());
-}
-
-
-
-  method addToPot(msg: Msg, gas: nat)
-    requires GInv()
-    requires msg.sender == this.operator
-    requires 0 < msg.value <= this.operator.balance
-    requires msg.sender != this
-    requires this.balance >= 0
-    modifies this, this.operator
-    ensures GInv()
-    // ensures this.pot == old(this.pot) + msg.value
-    // ensures this.operator.balance == old(this.operator.balance) - msg.value
-  {
-    // transfer(this.operator, this, msg.value, gas);
-    this.pot := this.pot + msg.value;
   }
 
-  method removeFromPot(msg: Msg, amount: int, gas: nat)
+
+
+  method addToPot(msg: Msg, gas: nat) returns (g: nat, r: Try<()>)
     requires GInv()
-    requires this.state != BET_PLACED
-    requires msg.sender == this.operator
-    requires 0 < amount <= this.balance
-    requires 0 < amount <= this.pot
-    requires msg.sender != this
-    requires this.operator.balance >= 0
+    requires gas >= 1
     modifies this, this.operator
+    //ensures for Succ
+    //ensures for Revert
+    ensures g == 0 || g <= gas - 1
     ensures GInv()
-    // ensures this.pot == old(this.pot) - amount
-    // ensures this.operator.balance == old(this.operator.balance) + amount
+    decreases gas
   {
-    // transfer(this, this.operator,amount, gas);
-    this.pot := this.pot - amount;
+    if !(msg.sender == this.operator && 0 < msg.value <= this.operator.balance && msg.sender != this &&
+         this.balance >= 0) {
+      return (if gas >= 1 then gas - 1 else 0), Revert();
+    }
+
+    var tg, tr := transfer(this.operator, this, msg.value, gas);
+
+    if tr.Revert? {
+      return (if tg >= 1 then tg - 1 else 0), Revert();
+    }
+
+    if tg >= 1 {
+      this.pot := this.pot + msg.value;
+      g, r := tg - 1, Success(());
+    } else {
+      return tg, Revert();
+    }
   }
 
-  method createGame(msg: Msg, hashedNumber: int) // does it need gas ?
+
+  method removeFromPot(msg: Msg, amount: int, gas: nat) returns (g: nat, r: Try<()>)
     requires GInv()
-    requires this.state == IDLE
-    requires msg.sender == this.operator
-    requires msg.sender != this
+    requires gas >= 1
+    modifies this, this.operator
+    //ensures for Succ
+    //ensures for Revert
+    ensures g == 0 || g <= gas - 1
+    ensures GInv()
+    decreases gas
+  {
+    if !(this.state == BET_PLACED && msg.sender == this.operator && 0 < amount <= this.balance && 0 < amount <= this.pot
+         && msg.sender != this && this.operator.balance >= 0) {
+      return (if gas >= 1 then gas - 1 else 0), Revert();
+    }
+
+    var tg, tr := transfer(this, this.operator,amount, gas);
+
+    if tr.Revert? {
+      return (if tg >= 1 then tg - 1 else 0), Revert();
+    }
+
+    if tg >= 1 {
+      this.pot := this.pot - amount;
+      g, r := tg - 1, Success(());
+    } else {
+      return tg, Revert();
+    }
+  }
+
+  method createGame(msg: Msg, hashedNumber: int, gas : nat) returns (g: nat, r: Try<()>)
+    requires GInv()
+    requires gas >= 1
     modifies this
-    ensures this.state == GAME_AVAILABLE
-    ensures this.hashedNumber == hashedNumber
+    ensures r.Success? ==> (this.state == GAME_AVAILABLE && this.hashedNumber == hashedNumber)
+    ensures r.Revert? ==>
+              (old(this.state) == this.state)
+    ensures g == 0 || g <= gas - 1
     ensures GInv()
+    decreases gas
   {
+    if !(this.state == IDLE && msg.sender == this.operator && msg.sender != this) {
+      return (if gas >= 1 then gas - 1 else 0), Revert();
+    }
     this.hashedNumber := hashedNumber;
     this.state := GAME_AVAILABLE;
+    g, r := (gas - 1), Success(());
   }
 
   method placeBet(msg: Msg, guess: Coin, gas: nat)
@@ -212,5 +245,5 @@ method transfer(from: Account, to: Account, amount: int, gas: nat) returns (g: n
   //     decideBet(msg, secretNumber);
   //   }
   // }
-method {:extern} havoc<T>() returns (a: T)
+  method {:extern} havoc<T>() returns (a: T)
 }
