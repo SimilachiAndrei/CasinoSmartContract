@@ -1,6 +1,5 @@
 //TO DO : totalAmount
 //TO DO : maybe use <==> and find some conditions for Success and Revert in some functions
-//TO DO : verificare havoc
 
 datatype Coin = HEADS | TAILS
 
@@ -191,8 +190,11 @@ class Casino extends Account{
     {
       return (if gas >= 1 then gas - 1 else 0), Revert();
     }
+    // var oldPlayer := this.player;
+    // this.player := msg.sender;
     var tg, tr := transfer(msg.sender, this, msg.value, gas);
     if tr.Revert? {
+      // this.player := oldPlayer;
       return (if tg >= 1 then tg - 1 else 0), Revert();
     }
     if tg >= 1 {
@@ -202,6 +204,7 @@ class Casino extends Account{
       this.guess := guess;
       g, r := tg - 1, Success(());
     } else {
+      // this.player := oldPlayer;
       return tg, Revert();
     }
   }
@@ -248,11 +251,11 @@ class Casino extends Account{
     g, r := (tg - 1), Success(());
   }
 
-method externalCall(gas: nat) returns (g: nat, r: Try<()>)
+method externalCall(gas: nat, ghost allAcc : set<Account>) returns (g: nat, r: Try<()>)
     requires GInv()  
     ensures GInv() 
     ensures g == 0 || g <= gas - 1 
-    modifies this, this.operator, this.player
+    modifies this, this.operator, this.player, allAcc
     decreases gas
 {
     var k: nat := havoc();
@@ -262,7 +265,7 @@ method externalCall(gas: nat) returns (g: nat, r: Try<()>)
         var hashedNumber: int := havoc();
         g, r := createGame(msg, hashedNumber, gas);
     } else if k % 5 == 1 {
-        var msg: Msg := havoc(); 
+        var msg: Msg := havocMsg(allAcc); 
         var newGuess: Coin := havoc();
         g, r := placeBet(msg, newGuess, gas);
     } else if k % 5 == 2 {
@@ -280,4 +283,6 @@ method externalCall(gas: nat) returns (g: nat, r: Try<()>)
 }
 
   method {:extern} havoc<T>() returns (a: T)
+  method {:extern} havocMsg(ghost allAcc : set<Account>) returns (a: Msg) ensures a.sender in allAcc 
+
 }
