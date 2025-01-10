@@ -48,8 +48,7 @@ class Casino extends Account{
   {
     this.pot >= 0 &&
     this.balance >= 0 &&
-    (this.state != BET_PLACED || this.bet > 0) // &&
-    // totalAmount == this.operator.balance + this.balance
+    ((this.state != BET_PLACED || this.bet > 0)  || (this.bet > 0 && this.player != null))
   }
 
 
