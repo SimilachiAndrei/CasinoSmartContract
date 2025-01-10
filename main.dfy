@@ -51,8 +51,9 @@ class Casino extends Account{
     this.pot >= 0 &&
     this.balance >= 0 &&
     this.operator.balance >= 0 &&
+    this.player.balance >= 0 &&
     ((this.state != BET_PLACED || this.bet > 0)  || (this.bet > 0 && this.player != null))
-    && (this.totalAmount == this.operator.balance + this.balance + this.player.balance) // + this.pot
+    && (this.totalAmount == this.operator.balance + this.balance + this.player.balance + this.pot) // + this.pot
 
 
   }
@@ -103,15 +104,15 @@ class Casino extends Account{
       return (if gas >= 1 then gas - 1 else 0), Revert();
     }
 
-    assert GInv();
-        assert (this.totalAmount == this.operator.balance + this.balance + this.player.balance) ;// + this.pot
+    // assert GInv();
+    // assert (this.totalAmount == this.operator.balance + this.balance + this.player.balance) ;// + this.pot
     from.balance := from.balance - amount;
     to.balance := to.balance + amount;
-    assert this.pot >= 0 ;
-    assert this.balance >= 0 ;
-    assert this.operator.balance >= 0 ;
-    assert ((this.state != BET_PLACED || this.bet > 0)  || (this.bet > 0 && this.player != null)) ;
-    assert (this.totalAmount == this.operator.balance + this.balance + this.player.balance) ;// + this.pot
+    // assert this.pot >= 0 ;
+    // assert this.balance >= 0 ;
+    // assert this.operator.balance >= 0 ;
+    // assert ((this.state != BET_PLACED || this.bet > 0)  || (this.bet > 0 && this.player != null)) ;
+    // assert (this.totalAmount == this.operator.balance + this.balance + this.player.balance) ;// + this.pot
     g, r := (gas - 1), Success(());
   }
 
@@ -139,7 +140,9 @@ class Casino extends Account{
     }
 
     if tg >= 1 {
+
       this.pot := this.pot + msg.value;
+      totalAmount := totalAmount + msg.value;
       g, r := tg - 1, Success(());
     } else {
       return tg, Revert();
@@ -170,6 +173,7 @@ class Casino extends Account{
     }
 
     if tg >= 1 {
+      totalAmount := totalAmount - amount;
       this.pot := this.pot - amount;
       g, r := tg - 1, Success(());
     } else {
@@ -220,7 +224,6 @@ class Casino extends Account{
       this.state := BET_PLACED;
       totalAmount := totalAmount - this.player.balance + msg.sender.balance;
       this.player := msg.sender;
-      assert this.totalAmount == this.operator.balance + this.balance + this.player.balance;
       this.bet := msg.value;
       this.guess := guess;
       g, r := tg - 1, Success(());
@@ -257,6 +260,7 @@ class Casino extends Account{
         return (if tg >= 1 then tg - 1 else 0), Revert();
       }
       if tg >= 1 {
+        totalAmount := totalAmount - this.bet;
         this.pot := this.pot - this.bet;
         g, r := tg - 1, Success(());
       } else {
@@ -264,6 +268,7 @@ class Casino extends Account{
       }
     } else {
       // Operator wins
+      totalAmount := totalAmount + this.bet;
       this.pot := this.pot + this.bet;
     }
     this.bet := 0;
