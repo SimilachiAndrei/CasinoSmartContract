@@ -218,6 +218,7 @@ class Casino extends Account{
     }
     if tg >= 1 {
       this.state := BET_PLACED;
+      // assert this.totalAmount == this.operator.balance + this.balance + this.player.balance;
       this.player := msg.sender;
       this.bet := msg.value;
       this.guess := guess;
