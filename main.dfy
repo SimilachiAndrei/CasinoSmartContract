@@ -83,7 +83,7 @@ class Casino extends Account{
     ensures g == 0 || g <= gas - 1
     ensures GInv()
     ensures old(this.state) == this.state && old(this.player) == this.player && old(this.guess) == this.guess
-            && old(this.bet)== this.bet && old(this.pot) ==this.pot
+            && old(this.bet)== this.bet && old(this.pot) ==this.pot && this.operator == old(this.operator)
     decreases gas
   {
     if !(from != to && 0 < amount <= from.balance && to.balance >= 0 && gas >= 1) {
@@ -101,8 +101,10 @@ class Casino extends Account{
   method addToPot(msg: Msg, gas: nat) returns (g: nat, r: Try<()>)
     requires GInv()
     modifies this, this.operator
-    //ensures for Succ
-    //ensures for Revert
+    ensures r.Success? ==> (this.pot == old(this.pot + msg.value) && gas >= 1)
+    ensures r.Revert? ==>
+              (this.operator == old(this.operator) && this.pot == old(this.pot) )
+    ensures g == 0 || g <= gas - 1
     ensures g == 0 || g <= gas - 1
     ensures GInv()
     decreases gas
@@ -111,7 +113,6 @@ class Casino extends Account{
          this.balance >= 0 && gas >= 1) {
       return (if gas >= 1 then gas - 1 else 0), Revert();
     }
-
     var tg, tr := transfer(this.operator, this, msg.value, gas);
 
     if tr.Revert? {
@@ -130,8 +131,10 @@ class Casino extends Account{
   method removeFromPot(msg: Msg, amount: int, gas: nat) returns (g: nat, r: Try<()>)
     requires GInv()
     modifies this, this.operator
-    //ensures for Succ
-    //ensures for Revert
+    ensures r.Success? ==> (this.pot == old(this.pot - amount) && gas >= 1)
+    ensures r.Revert? ==>
+              (this.operator == old(this.operator) && this.pot == old(this.pot) )
+
     ensures g == 0 || g <= gas - 1
     ensures GInv()
     decreases gas
