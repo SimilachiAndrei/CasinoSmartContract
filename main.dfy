@@ -52,7 +52,7 @@ class Casino extends Account{
     this.balance >= 0 &&
     this.operator.balance >= 0 &&
     ((this.state != BET_PLACED || this.bet > 0)  || (this.bet > 0 && this.player != null))
-    && (this.totalAmount == this.operator.balance + this.balance + this.player.balance + this.pot) // + this.pot
+    && (this.totalAmount == this.operator.balance + this.balance + this.player.balance) // + this.pot
 
 
   }
@@ -75,13 +75,14 @@ class Casino extends Account{
     this.pot := 0;
     this.bet := 0;
     this.player := new UserAccount(0);
+    this.totalAmount := msg.sender.balance;
   }
 
   method transfer(from: Account, to: Account, amount: int, gas: nat) returns (g: nat, r: Try<()>)
-    requires to in {operator, this, player} && from in {operator, this, player}
-    requires this != operator
-    requires this != player
-    requires player != operator
+    // requires to in {operator, this, player} && from in {operator, this, player}
+    // requires this != operator
+    // requires this != player
+    // requires player != operator
     requires GInv()
     modifies from, to
     ensures
@@ -103,14 +104,14 @@ class Casino extends Account{
     }
 
     assert GInv();
-        assert (this.totalAmount == this.operator.balance + this.balance + this.player.balance + this.pot) ;// + this.pot
+        assert (this.totalAmount == this.operator.balance + this.balance + this.player.balance) ;// + this.pot
     from.balance := from.balance - amount;
     to.balance := to.balance + amount;
     assert this.pot >= 0 ;
     assert this.balance >= 0 ;
     assert this.operator.balance >= 0 ;
     assert ((this.state != BET_PLACED || this.bet > 0)  || (this.bet > 0 && this.player != null)) ;
-    assert (this.totalAmount == this.operator.balance + this.balance + this.player.balance + this.pot) ;// + this.pot
+    assert (this.totalAmount == this.operator.balance + this.balance + this.player.balance) ;// + this.pot
     g, r := (gas - 1), Success(());
   }
 
