@@ -1,5 +1,4 @@
 //TO DO : totalAmount
-//TO DO : maybe use <==> and find some conditions for Success and Revert in some functions
 
 datatype Coin = HEADS | TAILS
 
@@ -46,13 +45,21 @@ class Casino extends Account{
   ghost predicate GInv()
     reads this, this`totalAmount, this.operator, this.player
   {
+    this != operator &&
+    this != player &&
+    player != operator &&
     this.pot >= 0 &&
     this.balance >= 0 &&
+    this.operator.balance >= 0 &&
     ((this.state != BET_PLACED || this.bet > 0)  || (this.bet > 0 && this.player != null))
+    && (this.totalAmount == this.operator.balance + this.balance + this.player.balance + this.pot) // + this.pot
+
+
   }
 
 
   constructor(msg: Msg)
+    requires msg.sender.balance > 0
     ensures this.operator == msg.sender
     ensures this.state == IDLE
     ensures this.pot == 0
@@ -71,6 +78,10 @@ class Casino extends Account{
   }
 
   method transfer(from: Account, to: Account, amount: int, gas: nat) returns (g: nat, r: Try<()>)
+    requires to in {operator, this, player} && from in {operator, this, player}
+    requires this != operator
+    requires this != player
+    requires player != operator
     requires GInv()
     modifies from, to
     ensures
@@ -85,13 +96,21 @@ class Casino extends Account{
             && old(this.bet)== this.bet && old(this.pot) ==this.pot && this.operator == old(this.operator)
     decreases gas
   {
-    if !(from != to && 0 < amount <= from.balance && to.balance >= 0 && gas >= 1) {
+    if !(from != to && 0 < amount <= from.balance && to.balance >= 0 && gas >= 1
+    && (to in {operator, this, player} && from in {operator, this, player}) && this != operator
+    && this != player && player != operator) {
       return (if gas >= 1 then gas - 1 else 0), Revert();
     }
 
+    assert GInv();
+        assert (this.totalAmount == this.operator.balance + this.balance + this.player.balance + this.pot) ;// + this.pot
     from.balance := from.balance - amount;
     to.balance := to.balance + amount;
-
+    assert this.pot >= 0 ;
+    assert this.balance >= 0 ;
+    assert this.operator.balance >= 0 ;
+    assert ((this.state != BET_PLACED || this.bet > 0)  || (this.bet > 0 && this.player != null)) ;
+    assert (this.totalAmount == this.operator.balance + this.balance + this.player.balance + this.pot) ;// + this.pot
     g, r := (gas - 1), Success(());
   }
 
@@ -192,11 +211,8 @@ class Casino extends Account{
     {
       return (if gas >= 1 then gas - 1 else 0), Revert();
     }
-    // var oldPlayer := this.player;
-    // this.player := msg.sender;
     var tg, tr := transfer(msg.sender, this, msg.value, gas);
     if tr.Revert? {
-      // this.player := oldPlayer;
       return (if tg >= 1 then tg - 1 else 0), Revert();
     }
     if tg >= 1 {
@@ -206,7 +222,6 @@ class Casino extends Account{
       this.guess := guess;
       g, r := tg - 1, Success(());
     } else {
-      // this.player := oldPlayer;
       return tg, Revert();
     }
   }
