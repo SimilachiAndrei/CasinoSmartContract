@@ -72,7 +72,7 @@ class Casino extends Account{
   }
 
   method transfer(from: Account, to: Account, amount: int, gas: nat) returns (g: nat, r: Try<()>)
-    // requires to in {operator, this, player} && from in {operator, this, player}
+    requires to in {operator, this, player} && from in {operator, this, player}
     requires GInv()
     modifies from, to
     ensures
@@ -108,7 +108,7 @@ class Casino extends Account{
     ensures GInv()
     decreases gas
   {
-    if !(msg.sender == this.operator && 0 < msg.value <= this.operator.balance && msg.sender != this &&
+    if !(msg.sender == this.operator && 0 < msg.value <= this.operator.balance &&
          this.balance >= 0 && gas >= 1) {
       return (if gas >= 1 then gas - 1 else 0), Revert();
     }
@@ -140,7 +140,7 @@ class Casino extends Account{
     decreases gas
   {
     if !(this.state == BET_PLACED && msg.sender == this.operator && 0 < amount <= this.balance && 0 < amount <= this.pot
-         && msg.sender != this && this.operator.balance >= 0 && gas >= 1) {
+          && this.operator.balance >= 0 && gas >= 1) {
       return (if gas >= 1 then gas - 1 else 0), Revert();
     }
 
@@ -169,7 +169,7 @@ class Casino extends Account{
     ensures GInv()
     decreases gas
   {
-    if !(this.state == IDLE && msg.sender == this.operator && msg.sender != this && gas >= 1) {
+    if !(this.state == IDLE && msg.sender == this.operator && gas >= 1) {
       return (if gas >= 1 then gas - 1 else 0), Revert();
     }
     this.hashedNumber := hashedNumber;
@@ -195,18 +195,25 @@ class Casino extends Account{
     {
       return (if gas >= 1 then gas - 1 else 0), Revert();
     }
+    totalAmount := totalAmount - this.player.balance + msg.sender.balance;
+    var oldPLayer := this.player;
+    this.player := msg.sender;
     var tg, tr := transfer(msg.sender, this, msg.value, gas);
     if tr.Revert? {
+      totalAmount := totalAmount + old(this.player.balance) - msg.sender.balance;
+      this.player := oldPLayer;
       return (if tg >= 1 then tg - 1 else 0), Revert();
     }
     if tg >= 1 {
       this.state := BET_PLACED;
-      totalAmount := totalAmount - this.player.balance + msg.sender.balance;
-      this.player := msg.sender;
+      // totalAmount := totalAmount - this.player.balance + msg.sender.balance;
+      // this.player := msg.sender;
       this.bet := msg.value;
       this.guess := guess;
       g, r := tg - 1, Success(());
     } else {
+      this.player := oldPLayer;
+      totalAmount := totalAmount + this.player.balance - msg.sender.balance;
       return tg, Revert();
     }
   }
@@ -222,8 +229,8 @@ class Casino extends Account{
     ensures GInv()
     decreases gas
   {
-    if !(this.state == BET_PLACED && msg.sender == this.operator && cryptohash(secretNumber) == this.hashedNumber &&
-         msg.sender != this && player != this && this.player.balance >= 0 && 0 < 2 * this.bet <= this.balance &&
+    if !(this.state == BET_PLACED && msg.sender == this.operator && cryptohash(secretNumber) == this.hashedNumber
+          && player != this && this.player.balance >= 0 && 0 < 2 * this.bet <= this.balance &&
          0 < 2 * this.bet <= this.pot && gas >= 1)
     {
       return (if gas >= 1 then gas - 1 else 0), Revert();
