@@ -258,6 +258,8 @@ class Casino extends Account{
     }
     this.bet := 0;
     this.state := IDLE;
+    totalAmount := totalAmount - this.player.balance;
+    this.player := new UserAccount(0);
     g, r := (tg - 1), Success(());
   }
 
@@ -294,7 +296,7 @@ method externalCall(gas: nat, ghost allAcc : set<Account>) returns (g: nat, r: T
 
     var b:bool := havoc();
     if b && g >= 1 {
-      g,r := externalCall(g - 1, allAcc);
+      // g,r := externalCall(g - 1, allAcc);
     }
     else{
       g := if gas >= 1 then gas - 1 else 0;
