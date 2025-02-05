@@ -178,7 +178,6 @@ class Casino extends Account{
   }
 
   method placeBet(msg: Msg, guess: Coin, gas: nat) returns (g : nat , r : Try<()>)
-    // requires msg.sender in {operator, this, player} 
     requires GInv()
     modifies this, msg.sender
     ensures r.Success? ==> (this.state == BET_PLACED && this.bet == msg.value && this.player == msg.sender
@@ -269,27 +268,37 @@ method externalCall(gas: nat, ghost allAcc : set<Account>) returns (g: nat, r: T
     modifies this, this.operator, this.player, allAcc
     decreases gas
 {
+    g := gas;
     var k: nat := havoc();
 
-    if k % 5 == 0 {
-        var msg: Msg := havoc();
+    if k % 5 == 0 && g >= 1 {
+        var msg: Msg := havocMsg(allAcc);
         var hashedNumber: int := havoc();
-        g, r := createGame(msg, hashedNumber, gas);
-    } else if k % 5 == 1 {
+        g, r := createGame(msg, hashedNumber, g - 1);
+    } else if k % 5 == 1 && g >= 1 {
         var msg: Msg := havocMsg(allAcc); 
         var newGuess: Coin := havoc();
-        g, r := placeBet(msg, newGuess, gas);
-    } else if k % 5 == 2 {
-        var msg: Msg := havoc(); 
+        g, r := placeBet(msg, newGuess, g - 1);
+    } else if k % 5 == 2 && g >= 1 {
+        var msg: Msg := havocMsg(allAcc); 
         var secretNumber: int := havoc(); 
-        g, r := decideBet(msg, secretNumber, gas);
-    } else if k % 5 == 3 {
-        var msg: Msg := havoc();
-        g, r := addToPot(msg, gas);
-    } else if k % 5 == 4 {
-        var msg: Msg := havoc(); 
+        g, r := decideBet(msg, secretNumber, g - 1);
+    } else if k % 5 == 3 && g >= 1 {
+        var msg: Msg := havocMsg(allAcc);
+        g, r := addToPot(msg, g - 1);
+    } else if k % 5 == 4 && g >= 1 {
+        var msg: Msg := havocMsg(allAcc); 
         var amount: int := havoc();
-        g, r := removeFromPot(msg, amount, gas);
+        g, r := removeFromPot(msg, amount, g - 1);
+    }
+
+    var b:bool := havoc();
+    if b && g >= 1 {
+      g,r := externalCall(g - 1, allAcc);
+    }
+    else{
+      g := if gas >= 1 then gas - 1 else 0;
+      r := havoc();
     }
 }
 
