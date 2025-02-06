@@ -103,8 +103,8 @@ class Casino extends Account{
     ensures r.Revert? ==>
               (this.operator == old(this.operator) && this.pot == old(this.pot) )
     ensures g == 0 || g <= gas - 1
-    ensures g == 0 || g <= gas - 1
     ensures GInv()
+    ensures old(this.player) == this.player && this.operator == old(this.operator)
     decreases gas
   {
     if !(msg.sender == this.operator && 0 < msg.value <= this.operator.balance &&
@@ -136,6 +136,7 @@ class Casino extends Account{
 
     ensures g == 0 || g <= gas - 1
     ensures GInv()
+    ensures this.operator == old(this.operator) && this.player == old(this.player)
     decreases gas
   {
     if !(this.state == BET_PLACED && msg.sender == this.operator && 0 < amount <= this.balance && 0 < amount <= this.pot
@@ -166,6 +167,7 @@ class Casino extends Account{
               (old(this.state) == this.state)
     ensures g == 0 || g <= gas - 1
     ensures GInv()
+    ensures this.operator == old(this.operator) && this.player == old(this.player)
     decreases gas
   {
     if !(this.state == IDLE && msg.sender == this.operator && gas >= 1) {
@@ -186,6 +188,7 @@ class Casino extends Account{
                                                                                                                     == this.bet)
     ensures g == 0 || g <= gas - 1
     ensures GInv()
+    ensures this.operator == old(this.operator)
     decreases gas
   {
     if !(this.state == GAME_AVAILABLE && msg.sender != this.operator && msg.sender != this && 0 < msg.value <= msg.sender.balance
@@ -213,10 +216,11 @@ class Casino extends Account{
     requires GInv()
     modifies this, this.operator, this.player
     ensures r.Success? ==> (this.state == IDLE && this.bet == 0 && gas >= 1
-                            &&( this.pot == this.pot + this.bet || this.pot == this.pot - this.bet))
+                            &&( this.pot == this.pot + this.bet || this.pot == this.pot - this.bet) && fresh(this.player))
     ensures r.Revert? ==> (this.state == old(this.state) && this.bet == old(this.bet) && this.pot == old(this.pot)
                            && this.player == old(this.player))
     ensures g == 0 || g <= gas - 1
+    ensures this.operator == old(this.operator)
     ensures GInv()
     decreases gas
   {
@@ -288,7 +292,7 @@ method externalCall(gas: nat, ghost allAcc : set<Account>) returns (g: nat, r: T
 
     var b:bool := havoc();
     if b && g >= 1 {
-      // g,r := externalCall(g - 1, allAcc);
+      g,r := externalCall(g - 1, allAcc);
     }
     else{
       g := if gas >= 1 then gas - 1 else 0;
